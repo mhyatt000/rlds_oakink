@@ -1,0 +1,8 @@
+tensorflow[and-cuda]==2.13.0
+tensorflow-datasets==4.9.2
+tensorflow-hub==0.14.0
+
+tensorboard==2.13.0
+tensorflow-estimator==2.13.0
+tensorflow-io-gcs-filesystem==0.32.0
+tensorflow-metadata==1.13.1

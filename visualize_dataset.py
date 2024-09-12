@@ -14,7 +14,7 @@ WANDB_PROJECT = 'vis_rlds'
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('dataset_name', help='name of the dataset to visualize')
+parser.add_argument('--dataset_name', help='name of the dataset to visualize')
 args = parser.parse_args()
 
 if WANDB_ENTITY is not None:

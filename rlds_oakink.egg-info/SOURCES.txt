@@ -1,0 +1,9 @@
+LICENSE
+README.md
+setup.py
+rlds_oakink/__init__.py
+rlds_oakink/rlds_oakink_dataset_builder.py
+rlds_oakink.egg-info/PKG-INFO
+rlds_oakink.egg-info/SOURCES.txt
+rlds_oakink.egg-info/dependency_links.txt
+rlds_oakink.egg-info/top_level.txt
