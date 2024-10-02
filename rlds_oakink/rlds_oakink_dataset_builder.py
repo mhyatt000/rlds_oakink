@@ -33,10 +33,10 @@ def downscale_to_224(height: int, width: int) -> Tuple[int, int]:
 
 
 class RLDSOakink(tfds.core.GeneratorBasedBuilder):
-    """DatasetBuilder for OakInk v1."""
+    """DatasetBuilder for OakInk v1.0.1"""
 
-    VERSION = tfds.core.Version("1.0.0")
-    RELEASE_NOTES = {"1.0.0": "Initial release."}
+    VERSION = tfds.core.Version("1.0.1")
+    RELEASE_NOTES = {"1.0.1": "Initial release."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,39 +52,75 @@ class RLDSOakink(tfds.core.GeneratorBasedBuilder):
                             "observation": tfds.features.FeaturesDict(
                                 {
                                     "image": tfds.features.Image(
-                                        shape=(*downscale_to_224(480, 848), 3),
+                                        shape=(224, 224, 3),  #  shape=(480, 848, 3),
                                         dtype=np.uint8,
                                         encoding_format="png",
                                         doc="Main camera RGB observation.",
                                     ),
-                                    "state": tfds.features.FeaturesDict(
-                                        {
-                                            "cam_intr": tfds.features.Tensor(
-                                                shape=[3, 3],
-                                                dtype=np.float32,
-                                                doc="Camera intrinsics matrix",
-                                            ),
-                                            "mano_pose": tfds.features.Tensor(
-                                                shape=[16, 3],
-                                                dtype=np.float32,
-                                                doc="MANO pose parameters 16x3",
-                                            ),
-                                            "mano_shape": tfds.features.Tensor(
-                                                shape=[10],
-                                                dtype=np.float32,
-                                                doc="MANO shape parameters 10x",
-                                            ),
-                                            "joints_3d": tfds.features.Tensor(
-                                                shape=[21, 3],
-                                                dtype=np.float32,
-                                            ),
-                                            "joints_vis": tfds.features.Tensor(
-                                                shape=[21],
-                                                dtype=np.float32,
-                                                doc="joint visibility? TODO",
-                                            ),
-                                        },
+                                    ### CAMERA
+                                    "cam_intr": tfds.features.Tensor(
+                                        shape=[3, 3],
+                                        dtype=np.float32,
+                                        doc="Camera intrinsics matrix",
                                     ),
+                                    # 'cam_center': tfds.features.Tensor(
+                                    # shape=[2],
+                                    # dtype=np.float32,
+                                    # doc="Camera center",
+                                    # ),
+                                    # 'bbox_center': tfds.features.Tensor(
+                                    # shape=[2],
+                                    # dtype=np.int64,
+                                    # doc="Center of bounding box around hand",
+                                    # ),
+                                    # 'bbox_scale': tfds.features.Tensor(
+                                    # shape=[],
+                                    # dtype=np.float32,
+                                    # doc="Scale of bounding box around hand (pixels)",
+                                    # ),
+                                    # "raw_size": tfds.features.Tensor(
+                                    # shape=[2],
+                                    # dtype=np.int32,
+                                    # doc="Raw image size",
+                                    # ),
+                                    ### MANO
+                                    "mano_pose": tfds.features.Tensor(
+                                        shape=[16, 3],
+                                        dtype=np.float32,
+                                        doc="MANO pose parameters 16x3",
+                                    ),
+                                    "mano_shape": tfds.features.Tensor(
+                                        shape=[10],
+                                        dtype=np.float32,
+                                        doc="MANO shape parameters 10x",
+                                    ),
+                                    ### JOINT POSITIONS
+                                    "joints_3d": tfds.features.Tensor(
+                                        shape=[21, 3],
+                                        dtype=np.float32,
+                                    ),
+                                    # "joints_2d": tfds.features.Tensor(
+                                    # shape=[21, 2],
+                                    # dtype=np.float32,
+                                    # ),
+                                    # "joints_uvd": tfds.features.Tensor(
+                                    # shape=[21, 3],
+                                    # dtype=np.float32,
+                                    # ),
+                                    # "joints_vis": tfds.features.Tensor(
+                                    # shape=[21],
+                                    # dtype=np.float32,
+                                    # doc="joint visibility? TODO",
+                                    # ),
+                                    ### MESH VERTEX POSITIONS
+                                    # "verts_3d": tfds.features.Tensor(
+                                    # shape=[778, 3],
+                                    # dtype=np.float32,
+                                    # ),
+                                    # "verts_uvd": tfds.features.Tensor(
+                                    # shape=[778, 3],
+                                    # dtype=np.float32,
+                                    # ),
                                 }
                             ),
                             # "action": tfds.features.Tensor(
@@ -135,61 +171,98 @@ class RLDSOakink(tfds.core.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: tfds.download.DownloadManager):
         """Define data splits."""
+        import bafl
+        from bafl.scripts import make_oakink_torch
+
         return {
-            "train": self._generate_examples(path="data/train/episode_*.npy"),
-            # 'val': self._generate_examples(path='data/val/episode_*.npy'),
+            "train": self._generate_examples(
+                bafl.scripts.make_oakink_torch.make(train=True)
+            ),
+            # might need to be packed first
+            # "test": self._generate_examples( bafl.scripts.make_oakink_torch.make(train=False)),
         }
 
-    def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
+    def _generate_examples(self, ds) -> Iterator[Tuple[str, Any]]:
         """Generator of examples for each split."""
 
         self._embed = hub.load(
             "https://tfhub.dev/google/universal-sentence-encoder-large/5"
         )
-        import bafl
-        from bafl.scripts import make_oakink_torch
-
-        self.ds = bafl.scripts.make_oakink_torch()
-
 
         def _parse_example(data):
 
             paths = [d["image_path"] for d in data]
-            mykeys = [  # keys of interest
-                "image",
-                "image_path",
+
+            keys = [
+                "idx",  # popped
+                "cam_center",
+                "bbox_center",
+                "bbox_scale",
                 "cam_intr",
-                "joints_3d",
-                "joints_vis",
+                #
+                "joints_2d",  # popped
+                "joints_3d",  # popped
+                "joints_vis",  # popped
+                "joints_uvd",  # popped
+                #
+                "verts_3d",  # popped
+                "verts_uvd",  # popped
+                #
+                "raw_size",
+                "image_path",  # popped
+                "image_mask",  # popped
+                #
                 "mano_pose",
                 "mano_shape",
-                "task",
-                "idx",
+                "task",  # popped
+                "image",
             ]
 
             task = data[0]["task"]
-            lang = self._embed([task])[0].numpy()
+            lang = self._embed([task])[0].numpy()  # embedding takes ≈0.06s
 
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             episode = []
             for i, step in enumerate(data):
                 # compute Kona language embedding
 
-                step = {k: v for k, v in step.items() if k in mykeys}
+                # step = {k: v for k, v in step.items() if k in keys}
+
                 task = step.pop("task")
-                # with tf.device("/GPU:0"):
-                image = step.pop("image")
-                img_shape = downscale_to_224(*image.shape[:2])
-                image = tf.image.resize(image, img_shape).numpy().astype(np.uint8)
+
+                # main params
+                step["joints_3d"] = step.pop("target_joints_3d")
+                step["cam_intr"] = step.pop("target_cam_intr")
+                step["mano_pose"] = step.pop("target_mano_pose")
+                step["mano_shape"] = step.pop("target_mano_shape")
+
+                # keep in raw form
+                # img_shape = downscale_to_224(*image.shape[:2])
+                # image = tf.image.resize(image, img_shape).numpy().astype(np.uint8)
+
+                # needs to be reshaped because of the transforms
+                image = ((np.array(step["image"]) + 0.5) * 255).astype(np.uint8).transpose(1,2,0)
+
                 step.pop("image_path")
+                step.pop("image_mask")
+                step.pop("joints_2d")
+                step.pop("joints_vis")
+                step.pop("joints_uvd")
+                step.pop("verts_3d")
+                step.pop("verts_uvd")
                 idx = step.pop("idx")
 
                 episode.append(
                     {
                         "observation": {
+                            # **step,
                             "image": image,
+                            "joints_3d": step["joints_3d"],
+                            "cam_intr": step["cam_intr"],
+                            "mano_pose": step["mano_pose"],
+                            "mano_shape": step["mano_shape"],
                             # "wrist_image": step["wrist_image"],
-                            "state": step,
+                            # "state": step,
                         },
                         # "action": step["action"],
                         "discount": 1.0,
@@ -208,7 +281,26 @@ class RLDSOakink(tfds.core.GeneratorBasedBuilder):
             # if you want to skip an example for whatever reason, simply return None
             return idx, sample
 
-        for sample in self.ds:
+        """
+        # randomly select 500 samples to print
+        idxs = np.random.choice(len(ds), 500, replace=False)
+        for sample in idxs[:1]:
+            sample = ds[sample]
+            print(sample[0].keys())
+            print([k for k in sample[0].keys() if 'mano' in k])
+            # print( { k: v.dtype for k, v in sample[0].items() if isinstance(v, np.ndarray) })
+            print(sample[0]['bbox_scale'])
+
+            print(sample[0]['image'].shape)
+            print(type(sample[0]['image']).shape)
+
+        quit()
+        """
+
+        for sample in ds:
+            if sample[0]["intent"] == "handover":  # they have 2 hands
+                continue
+
             # # samples should be in list form (no collate)
             # # samples should not be transformed
             yield _parse_example(sample)
