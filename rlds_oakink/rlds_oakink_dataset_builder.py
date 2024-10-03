@@ -33,10 +33,10 @@ def downscale_to_224(height: int, width: int) -> Tuple[int, int]:
 
 
 class RLDSOakink(tfds.core.GeneratorBasedBuilder):
-    """DatasetBuilder for OakInk v1.0.1"""
+    """DatasetBuilder for OakInk v1.0.2"""
 
-    VERSION = tfds.core.Version("1.0.1")
-    RELEASE_NOTES = {"1.0.1": "Initial release."}
+    VERSION = tfds.core.Version("1.0.2")
+    RELEASE_NOTES = {"1.0.2": "Initial release."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
